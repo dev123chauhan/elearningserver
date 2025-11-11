@@ -1,41 +1,30 @@
 const express = require("express");
-const Course = require("../../api/models/Course");
+const Course = require("../models/Course");
 const router = express.Router();
-const coursesContent = require("../../courseData");
 const mongoose = require("mongoose");
-
-const insertCoursesIfEmpty = async () => {
-  const count = await Course.countDocuments();
-  if (count === 0) {
-    try {
-      await Course.insertMany(coursesContent);
-      console.log("Courses added successfully");
-    } catch (err) {
-      console.log("Error inserting courses:", err);
-    }
-  }
-};
-
-insertCoursesIfEmpty();
 
 router.get("/courses", async (req, res) => {
   try {
-    const { search } = req.query;
-    let courses;
+    const { search, tag } = req.query;
+    let query = {};
 
     if (search) {
-      courses = await Course.find({
-        $or: [
-          { name: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
-        ],
-      });
-    } else {
-      courses = await Course.find();
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { tag: { $regex: search, $options: "i" } },
+      ];
     }
 
+    if (tag) {
+      query.tag = { $regex: tag, $options: "i" };
+    }
+
+    const courses = await Course.find(query).sort({ createdAt: -1 });
     res.json(courses);
   } catch (err) {
+    console.error("Error fetching courses:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -58,6 +47,16 @@ router.get("/courses/:id", async (req, res) => {
   } catch (err) {
     console.error("Error fetching course:", err);
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/tags", async (req, res) => {
+  try {
+    const tags = await Course.distinct("tag");
+    res.json(tags);
+  } catch (err) {
+    console.error("Error fetching tags:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 

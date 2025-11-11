@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Enrollment = require("../../api/models/Enrollment");
+const Enrollment = require("../models/Enrollment");
 
 router.post("/enroll", async (req, res) => {
   try {
@@ -73,6 +73,7 @@ router.get("/enrolled-courses", async (req, res) => {
 router.delete("/enrolled-courses/:courseId", async (req, res) => {
   try {
     const { courseId } = req.params;
+
     const result = await Enrollment.findOneAndDelete({ courseId });
 
     if (result) {
