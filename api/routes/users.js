@@ -5,8 +5,25 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 const dotenv = require("dotenv");
+const multer = require('multer');
+const cloudinary = require('../../config/cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 dotenv.config();
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'profile-pictures',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 500, height: 500, crop: 'limit' }]
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 router.post('/register', async (req, res) => {
   try {
@@ -19,7 +36,6 @@ router.post('/register', async (req, res) => {
     res.status(400).json('Error: ' + error);
   } 
 });
-
 
 router.post('/login', async (req, res) => {
   try {
@@ -37,7 +53,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
 router.get('/user', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -46,8 +61,6 @@ router.get('/user', authMiddleware, async (req, res) => {
     res.status(400).json('Error: ' + error);
   }
 });
-
-
 
 router.post('/change-password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -73,6 +86,7 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     res.status(500).send('Server error');
   }
 });
+
 router.post('/update-profile', authMiddleware, async (req, res) => {
   try {
     const { gender, mobileNumber, dateOfBirth, address } = req.body;
@@ -87,6 +101,41 @@ router.post('/update-profile', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/upload-profile-picture', authMiddleware, upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
 
+    const imageUrl = req.file.path;
+
+    const user = await User.findById(req.user.id);
+    if (user.profileImage) {
+      const urlParts = user.profileImage.split('/');
+      const publicId = `profile-pictures/${urlParts[urlParts.length - 1].split('.')[0]}`;
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.log('Error deleting old image:', err);
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { profileImage: imageUrl },
+      { new: true }
+    ).select('-password');
+
+    res.json({ 
+      success: true, 
+      message: 'Profile picture uploaded successfully',
+      user: updatedUser 
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ message: 'Error uploading profile picture', error: error.message });
+  }
+});
 
 module.exports = router;
